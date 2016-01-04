@@ -20,22 +20,20 @@
 #define TWENTY_FIVE 25
 
 void ReadCmdArgs(int argc, char **argv, int *numberOfCells, int *simulateTime,
- int *sqrtOfTotalCells, FILE *cellFile) {
+ int *sqrtOfTotalCells) {
    int cmd, i = 2, nFlag = 0, tFlag = 0, fileFound = 0;
    char inputFile[TWENTY_FIVE];
-   char *cmdVal, *file, extension;
+   char *cmdVal, *extension;
 
    *numberOfCells = 0;
 
-   file = strrchr(argv[1], '.');
-   
-   if (file == NULL || !strcmp(file, ".cell")) {
+   extension = strrchr(argv[1], '.');
+
+   if (!(strcmp(extension, ".cell") == 0)) {
       printf("Error: .cell file not found\n");
       printf("Usage: ./a.out somefile.cell C S\n");
       exit(1);
    }
-
-   cellFile = fopen(argv[1], "r");
 
    for (; i < argc; i++) {
       cmd = *argv[i];
@@ -63,6 +61,29 @@ void ReadCmdArgs(int argc, char **argv, int *numberOfCells, int *simulateTime,
    *sqrtOfTotalCells = sqrt(*numberOfCells);
 }
 
+char **ParseXYFile(int *numFixedValueCells, char *inputFile) {
+   FILE *cellFile;
+   char oneWord[100], **fixedCellArgs;
+   int curCell = 0;
+
+   cellFile = fopen(inputFile, "r");
+   fgets(oneWord, 30, cellFile);
+   oneWord[strlen(oneWord) - 1] = '\0';
+   *numFixedValueCells = atoi(oneWord);
+
+   fixedCellArgs = calloc(*numFixedValueCells + 1, sizeof(char *));
+
+   while (curCell < *numFixedValueCells) {
+      fixedCellArgs[curCell] = calloc(1, 30);
+      fgets(oneWord, 30, cellFile);
+      oneWord[strlen(oneWord) - 1] = '\0';
+      memcpy(fixedCellArgs[curCell++], oneWord, 30);
+   }
+   fclose(cellFile);
+
+   return fixedCellArgs;
+}
+
 int main(int argc, char **argv) {
    int numberOfCells, simulateTime, reportPipe[2], numFixedValueCells;
    int curCell = 0, i = 0, sqrtOfTotalCells;
@@ -70,8 +91,8 @@ int main(int argc, char **argv) {
    int upYAxisPipe[2] = { 0 }, downYAxisPipe[2] = { 0 };
    int leftXAxisPipe[2] = { 0 }, rightYAxisPipe[2] = { 0 };
    int downLeftYAxisPipe[2] = { 0 }, downRightYAxisPipe[2] = { 0 };
-   char **parsedCellvalues, **cellArgv, **cellArgvStart;
-   FILE *cellFile;
+   char **parsedCellValues, **cellArgv, **cellArgvStart;
+   FILE cellFile;
    CellFileDescriptor *cellFileDescArgs;
 
    if (argc < 2) {
@@ -79,8 +100,13 @@ int main(int argc, char **argv) {
       exit(1);
    }
 
-   ReadCmdArgs(argc, argv, &numberOfCells, &simulateTime, &sqrtOfTotalCells,
-    cellFile);
+   ReadCmdArgs(argc, argv, &numberOfCells, &simulateTime, &sqrtOfTotalCells);
 
+   cellFileDescArgs = calloc(numberOfCells, sizeof(CellFileDescriptor));
+
+   parsedCellValues = ParseXYFile(&numFixedValueCells, argv[1]);
+
+   while (*parsedCellValues)
+      printf("%s\n", *parsedCellValues++);
    return 0;
 }
