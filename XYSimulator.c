@@ -84,12 +84,57 @@ char **ParseXYFile(int *numFixedValueCells, char *inputFile) {
    return fixedCellArgs;
 }
 
+void AssignFixedCellValues(int numberOfCells, char **parsedCellValues,
+ CellFileDescriptor *cellRdWr, int numFixedValueCells,
+ int sqrtOfTotalCells) {
+   int cellRoot, xCord, yCord, fixedCell, i = 0;
+   char *end;
+   double fixedValue;
+
+   cellRoot = sqrt(numberOfCells);
+
+   while (numFixedValueCells--) {
+      xCord = strtol(parsedCellValues[i++], &end, 10);
+      yCord = strtol(end, &end, 10);
+      fixedValue = strtod(end, &end);
+
+      fixedCell = xCord + yCord * cellRoot;
+      cellRdWr[fixedCell].fixedValue = fixedValue;
+   }
+}
+void SetupPipes(int numberOfCells, int curCell, int *downYAxisPipe,
+ int *upYAxisPipe, int *upLeftYAxisPipe, int *upRightYAxisPipe,
+ int *leftXAxisPipe, int *rightXAxisPipe, int *downLeftYAxisPipe,
+ int *downRightYAxisPipe, int cellRoot, CellFileDescriptor *cellRdWr) {
+
+   if (numberOfCells > 4) {
+      if (curCell < cellRoot) {
+         FirstRowPipes(numberOfCells, curCell, cellRoot,
+          downRightYAxisPipe, downLeftYAxisPipe, downYAxisPipe,
+          cellRdWr);
+      }
+
+      else if (curCell < numberOfCells - 2 * cellRoot) {
+         InteriorCellsPipes(numberOfCells, cellRoot, curCell,
+          rightXAxisPipe, downRightYAxisPipe, leftXAxisPipe, upRightYAxisPipe,
+          upLeftYAxisPipe, downLeftYAxisPipe, upYAxisPipe, downYAxisPipe,
+          cellRdWr);
+      }
+
+      else if (curCell < numberOfCells - cellRoot) {
+         SecondToLastRowPipes(numberOfCells, cellRoot, curCell,
+          rightXAxisPipe, upRightYAxisPipe, upLeftYAxisPipe, upYAxisPipe,
+          leftXAxisPipe, cellRdWr);
+      }
+   }
+}
+
 int main(int argc, char **argv) {
    int numberOfCells, simulateTime, reportPipe[2], numFixedValueCells;
    int curCell = 0, i = 0, sqrtOfTotalCells;
    int upLeftYAxisPipe[2] = { 0 }, upRightYAxisPipe[2] = { 0 };
    int upYAxisPipe[2] = { 0 }, downYAxisPipe[2] = { 0 };
-   int leftXAxisPipe[2] = { 0 }, rightYAxisPipe[2] = { 0 };
+   int leftXAxisPipe[2] = { 0 }, rightXAxisPipe[2] = { 0 };
    int downLeftYAxisPipe[2] = { 0 }, downRightYAxisPipe[2] = { 0 };
    char **parsedCellValues, **cellArgv, **cellArgvStart;
    FILE cellFile;
@@ -106,7 +151,19 @@ int main(int argc, char **argv) {
 
    parsedCellValues = ParseXYFile(&numFixedValueCells, argv[1]);
 
-   while (*parsedCellValues)
-      printf("%s\n", *parsedCellValues++);
+   AssignFixedCellValues(numberOfCells, parsedCellValues, cellFileDescArgs,
+    numFixedValueCells, sqrtOfTotalCells);
+
+   pipe(reportPipe);
+
+   while (curCell < numberOfCells) {
+
+      SetupPipes(numberOfCells, curCell, downYAxisPipe, upYAxisPipe,
+       upLeftYAxisPipe, upRightYAxisPipe, leftXAxisPipe, rightXAxisPipe,
+       downLeftYAxisPipe, downRightYAxisPipe, sqrtOfTotalCells,
+       cellFileDescArgs);
+
+   }
+
    return 0;
 }
