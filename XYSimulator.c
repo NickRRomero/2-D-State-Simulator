@@ -102,30 +102,170 @@ void AssignFixedCellValues(int numberOfCells, char **parsedCellValues,
       cellRdWr[fixedCell].fixedValue = fixedValue;
    }
 }
+void FirstRowPipes(int numberOfCells, int curCell, int cellRoot,
+ int *downRightYAxisPipe, int *downLeftYAxisPipe, int *downYAxisPipe,
+ CellFileDescriptor *cellRdWr, int pipesToClose[TEN]) {
+   int pipesOpen = 0; 
+
+   if (curCell == 0) {
+      pipe(downRightYAxisPipe);
+
+      //Future Cell Setup
+      //cellRoot + 1 in grid
+      cellRdWr[cellRoot + 1].allInFD[cellRdWr[cellRoot + 1].numInFD++] =
+       downRightYAxisPipe[0];
+   
+      //Current Cell Setup
+      cellRdWr[curCell].allOutFD[cellRdWr[curCell].numOutFD++] =
+       downRightYAxisPipe[1];
+      pipesToClose[pipesOpen++] = downRightYAxisPipe[1];
+   }
+   
+   else if (curCell == cellRoot - 1) {
+      pipe(downLeftYAxisPipe);
+
+      //Future Cell Setup
+      cellRdWr[curCell + cellRoot - 1].allInFD[cellRdWr[curCell + cellRoot -
+         1].numInFD++] = downLeftYAxisPipe[0];
+
+      //Current Cell Setup
+      cellRdWr[curCell].allOutFD[cellRdWr[curCell].numOutFD++] =
+         downLeftYAxisPipe[1];
+      pipesToClose[pipesOpen++] = downLeftYAxisPipe[1];
+   }
+
+   else if (curCell < (numberOfCells - cellRoot)) {
+      if (curCell < cellRoot) {
+         pipe(downYAxisPipe);
+
+         //Future Cell
+         cellRdWr[curCell + cellRoot].allInFD[cellRdWr[curCell + cellRoot].
+            numInFD++] = downYAxisPipe[0];
+
+         //Current Cell
+         cellRdWr[curCell].allOutFD[cellRdWr[curCell].numOutFD++] =
+            downYAxisPipe[1];
+
+         pipesToClose[pipesOpen++] = downYAxisPipe[1];
+
+         if (curCell < cellRoot - 2) {
+            pipe(downRightYAxisPipe);
+
+            //Future Cell
+            cellRdWr[curCell + cellRoot + 1].allInFD[cellRdWr[curCell +
+               cellRoot + 1].numInFD++] = downRightYAxisPipe[0];
+
+            //Current Cell
+            cellRdWr[curCell].allOutFD[cellRdWr[curCell].numOutFD++] =
+               downRightYAxisPipe[1];
+
+            pipesToClose[pipesOpen++] = downRightYAxisPipe[1];
+         }
+
+         if (curCell > 1) {
+            pipe(downLeftYAxisPipe);
+
+            //Future Cell
+            cellRdWr[curCell + cellRoot - 1].allInFD[cellRdWr[curCell + cellRoot -
+               1].numInFD++] = downLeftYAxisPipe[0];
+
+            //Current Cell
+            cellRdWr[curCell].allOutFD[cellRdWr[curCell].numOutFD++] =
+               downLeftYAxisPipe[1];
+
+            pipesToClose[pipesOpen++] = downLeftYAxisPipe[1];
+         }
+      }
+   }
+}
+
+void InteriorCellsPipes(int numberOfCells, int cellRoot,
+ int curCell, int *rightXAxisPipe, int *downRightYAxisPipe, int *leftXAxisPipe,
+ int *upRightYAxisPipe, int *upLeftYAxisPipe, int *downLeftYAxisPipe,
+ int *upYAxisPipe, int *downYAxisPipe,
+ CellFileDescriptor *cellRdWr, int pipesToClose[TEN]) { 
+   int pipesOpen = 0;
+
+   if (curCell % cellRoot == 0) {
+      pipe(rightXAxisPipe);
+      pipe(downRightYAxisPipe);
+
+      //Future Cell Setup
+      cellRdWr[curCell + 1].allInFD[cellRdWr[curCell + 1].numInFD++] =
+         rightXAxisPipe[0];//Read for . Cell
+      cellRdWr[curCell + cellRoot + 1].allInFD[cellRdWr[curCell +
+         cellRoot + 1].numInFD++] = downRightYAxisPipe[0];//Write from . Cell
+
+      //Current Cell Setup
+      cellRdWr[curCell].allOutFD[cellRdWr[curCell].numOutFD++] =
+         rightXAxisPipe[1];//Read for .Cell
+      cellRdWr[curCell].allOutFD[cellRdWr[curCell].numOutFD++] =
+         downRightYAxisPipe[1];//Write from .Cell
+
+   }
+
+
+}
+
 void SetupPipes(int numberOfCells, int curCell, int *downYAxisPipe,
  int *upYAxisPipe, int *upLeftYAxisPipe, int *upRightYAxisPipe,
  int *leftXAxisPipe, int *rightXAxisPipe, int *downLeftYAxisPipe,
- int *downRightYAxisPipe, int cellRoot, CellFileDescriptor *cellRdWr) {
+ int *downRightYAxisPipe, int cellRoot, CellFileDescriptor *cellRdWr,
+ int pipesToClose[TEN]) {
 
    if (numberOfCells > 4) {
       if (curCell < cellRoot) {
          FirstRowPipes(numberOfCells, curCell, cellRoot,
           downRightYAxisPipe, downLeftYAxisPipe, downYAxisPipe,
-          cellRdWr);
+          cellRdWr, pipesToClose);
       }
 
       else if (curCell < numberOfCells - 2 * cellRoot) {
          InteriorCellsPipes(numberOfCells, cellRoot, curCell,
           rightXAxisPipe, downRightYAxisPipe, leftXAxisPipe, upRightYAxisPipe,
           upLeftYAxisPipe, downLeftYAxisPipe, upYAxisPipe, downYAxisPipe,
-          cellRdWr);
+          cellRdWr, pipesToClose);
       }
-
+/*
       else if (curCell < numberOfCells - cellRoot) {
          SecondToLastRowPipes(numberOfCells, cellRoot, curCell,
           rightXAxisPipe, upRightYAxisPipe, upLeftYAxisPipe, upYAxisPipe,
           leftXAxisPipe, cellRdWr);
       }
+   */
+   }
+}
+
+void BuildCellCmdArguments(int curCell, int reportPipeWrite,
+  CellFileDescriptor *cellRdWr, char ***cellArgv, int time,
+  char **parsedCellValues, int numberOfCells) {
+  int tempInFD = 0, tempOutFD = 0, xCord, yCord, cellRoot = numberOfCells;
+  char tempArg[FORMAT_LENGTH], **start;
+
+
+   strcpy(*(*cellArgv)++, "CELL\0");
+   sprintf(tempArg, "S%i", time);
+   strcpy(*(*cellArgv)++, tempArg);
+
+   sprintf(tempArg, "D%i", curCell);
+   strcpy(*(*cellArgv)++, tempArg);
+   sprintf(tempArg, "O%i", reportPipeWrite);
+   strcpy(*(*cellArgv)++, tempArg);
+
+   while (tempInFD < cellRdWr[curCell].numInFD) {
+      sprintf(tempArg, "I%i", cellRdWr[curCell].allInFD[tempInFD++]);
+      strcpy(*(*cellArgv)++, tempArg);
+   }
+
+   while (tempOutFD < cellRdWr[curCell].numOutFD) {
+      sprintf(tempArg, "O%i", cellRdWr[curCell].allOutFD[tempOutFD++]);
+      strcpy(*(*cellArgv)++, tempArg);
+   }
+
+   if (cellRdWr[curCell].fixedValue) {
+      tempArg[0] = 'V';
+      sprintf(tempArg + 1, "%f", cellRdWr[curCell].fixedValue);
+      strcpy(*(*cellArgv)++, tempArg);
    }
 }
 
@@ -136,6 +276,7 @@ int main(int argc, char **argv) {
    int upYAxisPipe[2] = { 0 }, downYAxisPipe[2] = { 0 };
    int leftXAxisPipe[2] = { 0 }, rightXAxisPipe[2] = { 0 };
    int downLeftYAxisPipe[2] = { 0 }, downRightYAxisPipe[2] = { 0 };
+   int pipesToClose[TEN];
    char **parsedCellValues, **cellArgv, **cellArgvStart;
    FILE cellFile;
    CellFileDescriptor *cellFileDescArgs;
@@ -158,11 +299,45 @@ int main(int argc, char **argv) {
 
    while (curCell < numberOfCells) {
 
+      for (; i < 10; i++)
+         pipesToClose[i] = -1;
+
+
       SetupPipes(numberOfCells, curCell, downYAxisPipe, upYAxisPipe,
        upLeftYAxisPipe, upRightYAxisPipe, leftXAxisPipe, rightXAxisPipe,
        downLeftYAxisPipe, downRightYAxisPipe, sqrtOfTotalCells,
-       cellFileDescArgs);
+       cellFileDescArgs, pipesToClose);
 
+      cellArgv = calloc(TWENTY_FIVE, sizeof(char *));
+      for (i = 0; i < FIFTEEN; i++)
+         cellArgv[i] = calloc(1, FIFTEEN);
+
+      if (fork()) {
+         curCell++;
+         i = 0;
+         while (cellArgv[i])
+            free(cellArgv[i++]);
+         free(cellArgv);
+         
+         i = 0;
+         while (pipesToClose[i] != -1) {
+            close(pipesToClose[i++]);
+         }
+      }
+      else {
+         cellArgvStart = cellArgv;
+         close(reportPipe[0]);
+
+         BuildCellCmdArguments(curCell, reportPipe[1], cellFileDescArgs,
+          &cellArgv, simulateTime, parsedCellValues, numberOfCells);
+         *cellArgv = NULL;
+         cellArgv = cellArgvStart;
+         while (*cellArgv)
+            printf("%s\n", *cellArgv++);
+         printf("\n");
+         exit(1);
+      }
+         
    }
 
    return 0;
