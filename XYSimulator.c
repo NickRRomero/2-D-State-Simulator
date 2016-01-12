@@ -418,7 +418,7 @@ void SetupPipes(int numberOfCells, int curCell, int *downYAxisPipe,
    }
 }
 
-void BuildCellCmdArguments(int curCell, int reportPipeWrite,
+int BuildCellCmdArguments(int curCell, int reportPipeWrite,
   CellFileDescriptor *cellRdWr, char ***cellArgv, int time,
   char **parsedCellValues, int numberOfCells) {
   int tempInFD = 0, tempOutFD = 0, xCord, yCord, cellRoot = numberOfCells;
@@ -448,7 +448,7 @@ void BuildCellCmdArguments(int curCell, int reportPipeWrite,
       sprintf(tempArg + 1, "%f", cellRdWr[curCell].fixedValue);
       strcpy(*(*cellArgv)++, tempArg);
    }
-
+   return 1;
 }
 void ReportOutput(int *reportPipe, int numberOfCells, int time, int cellRoot) {
    int curCell = 0, i = 0, xCord, yCord;
@@ -480,7 +480,6 @@ int main(int argc, char **argv) {
       printf("Usage: ./a.out somefile.cell C S\n");
       exit(1);
    }
-
    ReadCmdArgs(argc, argv, &numberOfCells, &simulateTime, &sqrtOfTotalCells);
 
    cellFileDescArgs = calloc(numberOfCells, sizeof(CellFileDescriptor));
@@ -503,35 +502,34 @@ int main(int argc, char **argv) {
        cellFileDescArgs, pipesToClose);
 
 
-      /*cellArgv = calloc(TWENTY_FIVE, sizeof(char *));
+      cellArgv = calloc(TWENTY_FIVE, sizeof(char *));
       for (i = 0; i < FIFTEEN; i++)
-         cellArgv[i] = calloc(1, FIFTEEN);
-      */
+         cellArgv[i] = calloc(1, 20);
       if (fork()) {
          curCell++;
-         /*i = 0;
+         i = 0;
          while (cellArgv[i])
             free(cellArgv[i++]);
          free(cellArgv);
-         */
+         
          i = 0;
-         while (pipesToClose[i] != -1) {
+         while (pipesToClose[i] != -1)
             close(pipesToClose[i++]);
-         }
       }
       else {
-       
          cellArgvStart = cellArgv;
          close(reportPipe[0]);
-
-         BuildCellCmdArguments(curCell, reportPipe[1], cellFileDescArgs,
+         int toReturn = 0;
+         toReturn = BuildCellCmdArguments(curCell, reportPipe[1], cellFileDescArgs,
           &cellArgv, simulateTime, parsedCellValues, numberOfCells);
+         printf("curCell %i, toReturn %i\n", curCell, toReturn);
+         exit(1);
          *cellArgv = NULL;
          cellArgv = cellArgvStart;
          execve("./Cell", cellArgv, NULL);
       }        
    }
-   ReportOutput(reportPipe, numberOfCells, simulateTime, sqrtOfTotalCells);
+ //  ReportOutput(reportPipe, numberOfCells, simulateTime, sqrtOfTotalCells);
 
    return 0;
 }
