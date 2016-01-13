@@ -2,7 +2,7 @@
 #include <string.h>
 #include <math.h>
 #include <stdlib.h>
-#include "Report.h"
+#include "XYReport.h"
 #include <unistd.h>
 #include <assert.h>
 
@@ -56,12 +56,18 @@ void SimulateCellTime(int inFd, int outFd, int acceptFd[], int transmitFd[],
  Report *myReportStruct, int time, int actualNumberOfInputs) {
    int i, j = 0, tempInFD, tempOutFD;
    double average = 0.0;
+   int bytesRead;
    Report adjacentReportCells[MAX_CELL_INPUTS];
  
    for (i = 0; i <= time; i++) {
       tempOutFD = outFd;
       while (tempOutFD != -1) {
-         write(transmitFd[tempOutFD--], myReportStruct, sizeof(Report));
+         if (transmitFd[tempOutFD] == 4) {
+            bytesRead = write(transmitFd[tempOutFD--], myReportStruct, sizeof(Report)); 
+ //           printf("BytesRead = %i\n", bytesRead);
+         }
+         else
+            write(transmitFd[tempOutFD--], myReportStruct, sizeof(Report));
       }
       if (inFd > -1) {
          tempInFD = inFd;
@@ -99,12 +105,10 @@ int main(int argc, char **argv) {
    int acceptFd[MAX_CELL_INPUTS], transmitFd[MAX_CELL_OUTPUTS];
    Report myReportStruct = { 0 };
    char **start = argv;
-
    while (i < MAX_CELL_INPUTS) {
       acceptFd[i] = -1;
       transmitFd[i++] = -1;
    }
-
    actualNumberOfInputs = ReadArguments(&inFd, &outFd, acceptFd, transmitFd,
     &myReportStruct, &time, argc, argv);
 
