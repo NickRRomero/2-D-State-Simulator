@@ -12,12 +12,15 @@
 
 #define CELL_NUMBER 67
 #define SIMULATE 83
-#define REPORT_STRING "Result from Cell (%d, %d, 0), step %d: %.3f\n"
+#define REPORT_STRING "Result from Cell (%d, %d), step %d: %.3f\n"
 #define FORMAT_LENGTH 15
 #define PARSE_FORMAT_STRING "X%d Y%d"
 #define TEN 10
 #define FIFTEEN 15
 #define TWENTY_FIVE 25
+#define MAX_WORD_SIZE 100
+#define MIN_CELLS_FOR_PIPES 4
+#define MAX_PIPES_OPEN 10
 
 void ReadCmdArgs(int argc, char **argv, int *numberOfCells, int *simulateTime,
  int *sqrtOfTotalCells) {
@@ -63,21 +66,21 @@ void ReadCmdArgs(int argc, char **argv, int *numberOfCells, int *simulateTime,
 
 char **ParseXYFile(int *numFixedValueCells, char *inputFile) {
    FILE *cellFile;
-   char oneWord[100], **fixedCellArgs;
+   char oneWord[MAX_WORD_SIZE], **fixedCellArgs;
    int curCell = 0;
 
    cellFile = fopen(inputFile, "r");
-   fgets(oneWord, 30, cellFile);
+   fgets(oneWord, TWENTY_FIVE, cellFile);
    oneWord[strlen(oneWord) - 1] = '\0';
    *numFixedValueCells = atoi(oneWord);
 
    fixedCellArgs = calloc(*numFixedValueCells + 1, sizeof(char *));
 
    while (curCell < *numFixedValueCells) {
-      fixedCellArgs[curCell] = calloc(1, 30);
-      fgets(oneWord, 30, cellFile);
+      fixedCellArgs[curCell] = calloc(1, TWENTY_FIVE);
+      fgets(oneWord, TWENTY_FIVE, cellFile);
       oneWord[strlen(oneWord) - 1] = '\0';
-      memcpy(fixedCellArgs[curCell++], oneWord, 30);
+      memcpy(fixedCellArgs[curCell++], oneWord, TWENTY_FIVE);
    }
    fclose(cellFile);
 
@@ -94,8 +97,8 @@ void AssignFixedCellValues(int numberOfCells, char **parsedCellValues,
    cellRoot = sqrt(numberOfCells);
 
    while (numFixedValueCells--) {
-      xCord = strtol(parsedCellValues[i++], &end, 10);
-      yCord = strtol(end, &end, 10);
+      xCord = strtol(parsedCellValues[i++], &end, TEN);
+      yCord = strtol(end, &end, TEN);
       fixedValue = strtod(end, &end);
 
       fixedCell = xCord + yCord * cellRoot;
@@ -250,7 +253,6 @@ void InteriorCellsPipes(int numberOfCells, int cellRoot,
          pipe(leftXAxisPipe);
          pipe(upRightYAxisPipe);
          pipe(upLeftYAxisPipe);
-
          cellRdWr[curCell + 1].allOutFD[cellRdWr[curCell + 1].numOutFD++] =
             leftXAxisPipe[1];//Write from . Cell
          cellRdWr[curCell + cellRoot - 1].allOutFD[cellRdWr[curCell +
@@ -259,18 +261,18 @@ void InteriorCellsPipes(int numberOfCells, int cellRoot,
             cellRoot + 1].numOutFD++] = upLeftYAxisPipe[1];
 
          cellRdWr[curCell].allInFD[cellRdWr[curCell].numInFD++] =
-            leftXAxisPipe[0];//Write from . Cell
+            leftXAxisPipe[0];
          cellRdWr[curCell].allInFD[cellRdWr[curCell].numInFD++] =
             upRightYAxisPipe[0];//Write from |/_ Cell
          cellRdWr[curCell].allInFD[cellRdWr[curCell].numInFD++] =
             upLeftYAxisPipe[0];
  
-         pipesToClose[pipesOpen++] = rightXAxisPipe[1]; 
+         pipesToClose[pipesOpen++] = upLeftYAxisPipe[0]; 
          pipesToClose[pipesOpen++] = leftXAxisPipe[0];
          pipesToClose[pipesOpen++] = upRightYAxisPipe[0];
       
+         printf("%i\n", curCell);
       }
-
       pipe(upYAxisPipe);
       pipe(downYAxisPipe);
 
@@ -322,10 +324,10 @@ void SecondToLastRowPipes(int numberOfCells, int cellRoot, int curCell,
  int *upYAxisPipe, int *leftXAxisPipe, CellFileDescriptor *cellRdWr,
  int pipesToClose[TEN]) {
    int pipesOpen = 0;
-
+   
    if (curCell % cellRoot == 0) {
       pipe(rightXAxisPipe);
-
+   
       //Future Cell Setup
       cellRdWr[curCell + 1].allInFD[cellRdWr[curCell + 1].numInFD++] =
          rightXAxisPipe[0];//Read for . Cell
@@ -338,53 +340,52 @@ void SecondToLastRowPipes(int numberOfCells, int cellRoot, int curCell,
    }
 
    else if (curCell % cellRoot != numberOfCells - cellRoot - 1) {
-      if (curCell == 5)
-         return;
-      if (curCell % cellRoot < cellRoot - 2) {
-         pipe(rightXAxisPipe);
+      if (curCell != 5) {
+         if (curCell % cellRoot < cellRoot - 2) {
+            pipe(rightXAxisPipe);
 
-         //Future Cell Setup
-         cellRdWr[curCell + 1].allInFD[cellRdWr[curCell + 1].numInFD++] =
-            rightXAxisPipe[0];//Read for . Cell
+            //Future Cell Setup
+            cellRdWr[curCell + 1].allInFD[cellRdWr[curCell + 1].numInFD++] =
+               rightXAxisPipe[0];//Read for . Cell
 
-         //Current Cell Setup
-         cellRdWr[curCell].allOutFD[cellRdWr[curCell].numOutFD++] =
-            rightXAxisPipe[1];//Read for . Cell
+            //Current Cell Setup
+            cellRdWr[curCell].allOutFD[cellRdWr[curCell].numOutFD++] =
+               rightXAxisPipe[1];//Read for . Cell
 
-         pipesToClose[pipesOpen++] = rightXAxisPipe[1];
-      }
+            pipesToClose[pipesOpen++] = rightXAxisPipe[1];
+         }
 
-      if (curCell != numberOfCells - cellRoot - 1) {
+         if (curCell != numberOfCells - cellRoot - 1) {
+            pipe(upRightYAxisPipe);
+            pipe(upLeftYAxisPipe);
+            pipe(upYAxisPipe);
+            pipe(leftXAxisPipe);
 
-         pipe(upRightYAxisPipe);
-         pipe(upLeftYAxisPipe);
-         pipe(upYAxisPipe);
-         pipe(leftXAxisPipe);
+            //Future Cell Setup
+            cellRdWr[curCell + cellRoot - 1].allOutFD[cellRdWr[curCell +
+               cellRoot - 1].numOutFD++] = upRightYAxisPipe[1];//Write from |/_ Cell
+            cellRdWr[curCell + cellRoot + 1].allOutFD[cellRdWr[curCell +
+               cellRoot + 1].numOutFD++] = upLeftYAxisPipe[1];
+            cellRdWr[curCell + cellRoot].allOutFD[cellRdWr[curCell + cellRoot].
+               numOutFD++] = upYAxisPipe[1];
+            cellRdWr[curCell + 1].allOutFD[cellRdWr[curCell + 1].numOutFD++] =
+               leftXAxisPipe[1];
 
-         //Future Cell Setup
-         cellRdWr[curCell + cellRoot - 1].allOutFD[cellRdWr[curCell +
-            cellRoot - 1].numOutFD++] = upRightYAxisPipe[1];//Write from |/_ Cell
-         cellRdWr[curCell + cellRoot + 1].allOutFD[cellRdWr[curCell +
-            cellRoot + 1].numOutFD++] = upLeftYAxisPipe[1];
-         cellRdWr[curCell + cellRoot].allOutFD[cellRdWr[curCell + cellRoot].
-            numOutFD++] = upYAxisPipe[1];
-         cellRdWr[curCell + 1].allOutFD[cellRdWr[curCell + 1].numOutFD++] =
-            leftXAxisPipe[1];
+            //Current Cell Setup
+            cellRdWr[curCell].allInFD[cellRdWr[curCell].numInFD++] =
+               upRightYAxisPipe[0];
+            cellRdWr[curCell].allInFD[cellRdWr[curCell].numInFD++] =
+               upLeftYAxisPipe[0];
+            cellRdWr[curCell].allInFD[cellRdWr[curCell].numInFD++] =
+               upYAxisPipe[0];
+            cellRdWr[curCell].allInFD[cellRdWr[curCell].numInFD++] =
+               leftXAxisPipe[0];
 
-         //Current Cell Setup
-         cellRdWr[curCell].allInFD[cellRdWr[curCell].numInFD++] =
-            upRightYAxisPipe[0];
-         cellRdWr[curCell].allInFD[cellRdWr[curCell].numInFD++] =
-            upLeftYAxisPipe[0];
-         cellRdWr[curCell].allInFD[cellRdWr[curCell].numInFD++] =
-            upYAxisPipe[0];
-         cellRdWr[curCell].allInFD[cellRdWr[curCell].numInFD++] =
-            leftXAxisPipe[0];
-      
-         pipesToClose[pipesOpen++] = upRightYAxisPipe[0];
-         pipesToClose[pipesOpen++] = upLeftYAxisPipe[0];
-         pipesToClose[pipesOpen++] = upYAxisPipe[0];
-         pipesToClose[pipesOpen++] = leftXAxisPipe[0];
+            pipesToClose[pipesOpen++] = upRightYAxisPipe[0];
+            pipesToClose[pipesOpen++] = upLeftYAxisPipe[0];
+            pipesToClose[pipesOpen++] = upYAxisPipe[0];
+            pipesToClose[pipesOpen++] = leftXAxisPipe[0];
+         }
       }
    }
 }
@@ -396,7 +397,7 @@ void SetupPipes(int numberOfCells, int curCell, int *downYAxisPipe,
  int *downRightYAxisPipe, int cellRoot, CellFileDescriptor *cellRdWr,
  int pipesToClose[TEN]) {
 
-   if (numberOfCells > 4) {
+   if (numberOfCells > MIN_CELLS_FOR_PIPES) {
       if (curCell < cellRoot) {
          FirstRowPipes(numberOfCells, curCell, cellRoot,
           downRightYAxisPipe, downLeftYAxisPipe, downYAxisPipe,
@@ -471,7 +472,7 @@ int main(int argc, char **argv) {
    int upYAxisPipe[2] = { 0 }, downYAxisPipe[2] = { 0 };
    int leftXAxisPipe[2] = { 0 }, rightXAxisPipe[2] = { 0 };
    int downLeftYAxisPipe[2] = { 0 }, downRightYAxisPipe[2] = { 0 };
-   int pipesToClose[TEN];
+   int pipesToClose[20];
    char **parsedCellValues, **cellArgv, **cellArgvStart;
    FILE cellFile;
    CellFileDescriptor *cellFileDescArgs;
@@ -480,6 +481,7 @@ int main(int argc, char **argv) {
       printf("Usage: ./a.out somefile.cell C S\n");
       exit(1);
    }
+
    ReadCmdArgs(argc, argv, &numberOfCells, &simulateTime, &sqrtOfTotalCells);
 
    cellFileDescArgs = calloc(numberOfCells, sizeof(CellFileDescriptor));
@@ -492,9 +494,8 @@ int main(int argc, char **argv) {
    pipe(reportPipe);
 
    while (curCell < numberOfCells) {
-      i = 0;
-      for (; i < 10; i++)
-         pipesToClose[i] = -1;
+ //     for (i = 0; i < 20; i++)
+ //        pipesToClose[i] = -1;
 
       SetupPipes(numberOfCells, curCell, downYAxisPipe, upYAxisPipe,
        upLeftYAxisPipe, upRightYAxisPipe, leftXAxisPipe, rightXAxisPipe,
@@ -502,28 +503,32 @@ int main(int argc, char **argv) {
        cellFileDescArgs, pipesToClose);
 
 
-      cellArgv = calloc(TWENTY_FIVE, sizeof(char *));
-      for (i = 0; i < TWENTY_FIVE; i++)
-         cellArgv[i] = calloc(1, 20);
+      cellArgv = calloc(100, sizeof(char *));
+      for (i = 0; i < 100; i++)
+         cellArgv[i] = calloc(1, 40);
       if (fork()) {
          curCell++;
          i = 0;
-         while (cellArgv[i])
-            free(cellArgv[i++]);
-         free(cellArgv);
+         //while (cellArgv[i])
+         //   free(cellArgv[i++]);
+         //free(cellArgv);
          
          i = 0;
-         while (pipesToClose[i] != -1)
-            close(pipesToClose[i++]);
+   //      while (pipesToClose[i] != -1)
+   //         close(pipesToClose[i++]);
       }
       else {
-         cellArgvStart = cellArgv;
          close(reportPipe[0]);
+         cellArgvStart = cellArgv;
          BuildCellCmdArguments(curCell, reportPipe[1], cellFileDescArgs,
           &cellArgv, simulateTime, parsedCellValues, numberOfCells);
  
          *cellArgv = NULL;
          cellArgv = cellArgvStart;
+ //        while (*cellArgv)
+  //          printf("%s\n", *cellArgv++);
+    //     printf("\n");
+      //   exit(1);
          execve("./Cell", cellArgv, NULL);
       }        
    }
