@@ -48,7 +48,6 @@ int ReadArguments(int *inFd, int *outFd, int acceptFd[], int transmitFd[],
          assert(1);
       }
    }
-
    return actualNumberOfInputs;
 }
 
@@ -64,7 +63,6 @@ void SimulateCellTime(int inFd, int outFd, int acceptFd[], int transmitFd[],
       while (tempOutFD != -1) {
          if (transmitFd[tempOutFD] == 4) {
             bytesRead = write(transmitFd[tempOutFD--], myReportStruct, sizeof(Report)); 
- //           printf("BytesRead = %i\n", bytesRead);
          }
          else
             write(transmitFd[tempOutFD--], myReportStruct, sizeof(Report));
@@ -109,9 +107,10 @@ int main(int argc, char **argv) {
       acceptFd[i] = -1;
       transmitFd[i++] = -1;
    }
+ 
    actualNumberOfInputs = ReadArguments(&inFd, &outFd, acceptFd, transmitFd,
     &myReportStruct, &time, argc, argv);
-
+   
    SimulateCellTime(inFd, outFd, acceptFd, transmitFd, &myReportStruct, time,
     actualNumberOfInputs);
  
