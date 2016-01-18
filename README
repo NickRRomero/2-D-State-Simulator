@@ -1,0 +1,89 @@
+-----------------------
+Files Included and Used
+-----------------------
+
+XYSimulator.c        Driver program for cell creation and all I/O
+Cell.c               Cell program run by all child processes from XYSimulator
+XYReport.h           Header file for Cell.c & XYSimulator.c
+genXY.py             Python script that allows for quick generation of XY_#.cell files
+README               This file
+
+----------------------
+Command Line Arguments
+----------------------
+
+Example: ./a.out XY_16.cell C16 S5
+
+XY_16.cell | C | S
+   (required) These three args will be used by the XYSimulator
+   to setup all needed cell values and cell child processes
+
+   XY_#.cell - .cell format file containing all fixed cell values
+             - The # is not important to the program exeuction, but
+               provides clarity to what file is being used
+   
+   C#        - Determines the total number of cells to be created for the grid
+             - Typically # will match the one in XY_#.cell
+
+   S#        - Simulation time from 0 -> # - 1
+
+----------------------
+Design Decisions
+----------------------
+
+Q. How is the XY grid created?
+
+A. The grid is created by a series of forked child Cell processes. Through the parent 
+   process, every cell will have the required pipes needed to communicate.
+   The parent does this by using the current cell's number as a coordinate on this
+   "grid". Knowing the location of this cell allows the program to also know the
+   cell's 8 surrounding neighbors. The parent can then set up future cells and their
+   pipes that will transmit data back and forth. 
+
+Q. Why is the grid always a perfect square?
+   
+A. A square grid is easier to conceptualize and requires less specification on the exact
+   dimensions.
+
+Q. What is the visual layout of the grid?
+
+A. The Grid is built starting from the top left cell. It then creates sequential rows
+   until all cells have been created.
+   Example: 10 * 10 Grid. 100 Cells
+
+   ----------------------------------
+   |0, 0|                      |9, 0|
+   |----                        ----|
+   |                                |
+   |                                |
+   |                                |
+   |                                |
+   |                                |
+   |----                        ----|
+   |0, 9|                      |9, 9|
+   ---------------------------------
+
+Q. Can the Cell.c file be used for dimensions other than 2-D?
+
+A. Yes. The cell file was tested with a working LinearSim which involved a 1-D row of
+   cells. The logic in the Cell.c does not use or need to know how many extra pipes 
+   to/from other cells it will have. The cell will always read from all incoming pipes
+   and write to all outgoing ones.
+   NOTE: There are certain #defines or variables in the XYReport.h structs that will need
+   to be changed for larger dimenions.
+
+----------------------
+Notes
+----------------------
+
+I.   XYSimulator will expect to find an executable named Cell within the directory.
+     This Cell executable is created from the Cell.c file
+
+II.  The largest grid possible(on my machine) is 21 x 21 at 442 total processes. Any more
+     and the program will hang. My machine has a max number of PIDs available to UNIX.
+
+III. This is one of my first times writing python for any sort of scripting. Please 
+     excuse any egregious errors or inefficiencies. I just got so tired of formatting
+     these .cell files.
+ 
+IV.  10000 Cells does not work, at least on my laptop. Some interesting output is also achieved.

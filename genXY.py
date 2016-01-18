@@ -6,9 +6,9 @@ import os
 import sys
 
 def getCellNumber():
-   return (raw_input("Please enter a number of cells, i.e. 1, 4, 9, 16, ...," +
-           " 400, 441\nNOTE: The largest possible grid is 21 x 21 cells.(441)\n"
-           ),
+   return (raw_input("\nPlease enter a number of cells, i.e. 1, 4, 9," + 
+           "16, ..., 400, 441\nNOTE: The largest possible grid is 21 x " + 
+           "21 cells.(441)\n"),
            raw_input("Please enter a lower limit on the fixed cell values\n"),
            raw_input("Please enter an upper limit on the fixed cell values\n"))
    

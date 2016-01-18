@@ -23,6 +23,10 @@
 #define MAX_PIPES_OPEN 10
 #define MAX_CELL_ARGS 100
 
+/* The following function reads in the required command line arguments.
+ * Error checking is performed on the inputted file. A .cell file is
+ * assumed to be well formated.
+ */
 void ReadCmdArgs(int argc, char **argv, int *numberOfCells, int *simulateTime,
  int *sqrtOfTotalCells) {
    int cmd, i = 2, nFlag = 0, tFlag = 0;
@@ -64,6 +68,10 @@ void ReadCmdArgs(int argc, char **argv, int *numberOfCells, int *simulateTime,
    *sqrtOfTotalCells = sqrt(*numberOfCells);
 }
 
+/* The following function parses the provided .cell file. The file
+ * is assumed to be well formatted. The returned char ** contains
+ * all needed fixed cell values and their coordinates.
+ */ 
 char **ParseXYFile(int *numFixedValueCells, char *inputFile) {
    FILE *cellFile;
    char oneWord[MAX_WORD_SIZE], **fixedCellArgs;
@@ -87,6 +95,9 @@ char **ParseXYFile(int *numFixedValueCells, char *inputFile) {
    return fixedCellArgs;
 }
 
+/* This function uses the CellFileDescriptor struct and the parsed
+ * XY file to assign the appropriate fixed values to their respective cells.
+ */
 void AssignFixedCellValues(int numberOfCells, char **parsedCellValues,
  CellFileDescriptor *cellRdWr, int numFixedValueCells,
  int sqrtOfTotalCells) {
@@ -105,10 +116,16 @@ void AssignFixedCellValues(int numberOfCells, char **parsedCellValues,
       cellRdWr[fixedCell].fixedValue = fixedValue;
    }
 }
+
+/*This function will set up the first row of pipes. The first row of pipes
+ * is determined by the square root of the number of cells. Any cells with ids
+ * less than this root will be located in this row.
+ */
 void FirstRowPipes(int numberOfCells, int curCell, int cellRoot,
  int *downRightYAxisPipe, int *downLeftYAxisPipe, int *downYAxisPipe,
  CellFileDescriptor *cellRdWr) {
    
+   //Top Left Corner Cell
    if (curCell == 0) {
       pipe(downRightYAxisPipe);
 
@@ -121,6 +138,7 @@ void FirstRowPipes(int numberOfCells, int curCell, int cellRoot,
        downRightYAxisPipe[1];
    }
    
+   //Top Right Corner Cell
    else if (curCell == cellRoot - 1) {
       pipe(downLeftYAxisPipe);
 
@@ -133,6 +151,7 @@ void FirstRowPipes(int numberOfCells, int curCell, int cellRoot,
          downLeftYAxisPipe[1];
    }
 
+   //All other Cells in first row
    else if (curCell < (numberOfCells - cellRoot)) {
       if (curCell < cellRoot) {
          pipe(downYAxisPipe);
@@ -145,6 +164,7 @@ void FirstRowPipes(int numberOfCells, int curCell, int cellRoot,
          cellRdWr[curCell].allOutFD[cellRdWr[curCell].numOutFD++] =
             downYAxisPipe[1];
 
+         //First row cells. Does not include last two in row
          if (curCell < cellRoot - 2) {
             pipe(downRightYAxisPipe);
 
@@ -157,6 +177,7 @@ void FirstRowPipes(int numberOfCells, int curCell, int cellRoot,
                downRightYAxisPipe[1];
          }
 
+         //First row cells. Does not include top elft corner
          if (curCell > 1) {
             pipe(downLeftYAxisPipe);
 
@@ -172,11 +193,16 @@ void FirstRowPipes(int numberOfCells, int curCell, int cellRoot,
    }
 }
 
+/* This function is responsible for setting up all interior cells, up
+ * to the second to last row. Every cell will set up the adjacent row's cell
+ * as well as the adjacent cells in the next row
+ */
 void InteriorCellsPipes(int numberOfCells, int cellRoot, int curCell,
  int *rightXAxisPipe, int *downRightYAxisPipe, int *leftXAxisPipe,
  int *upRightYAxisPipe, int *upLeftYAxisPipe, int *downLeftYAxisPipe,
  int *upYAxisPipe, int *downYAxisPipe, CellFileDescriptor *cellRdWr) { 
 
+   //All cells in the leftmost column
    if (curCell % cellRoot == 0) {
       pipe(rightXAxisPipe);
       pipe(downRightYAxisPipe);
@@ -194,6 +220,7 @@ void InteriorCellsPipes(int numberOfCells, int cellRoot, int curCell,
          downRightYAxisPipe[1];
    }
 
+   //All cells up to, but not indluding, the second to last column on the right
    else if (curCell % cellRoot <= cellRoot - 2) {
       if (curCell % cellRoot < cellRoot - 2) {
          pipe(rightXAxisPipe);
@@ -227,6 +254,7 @@ void InteriorCellsPipes(int numberOfCells, int cellRoot, int curCell,
             upLeftYAxisPipe[0];
       }
 
+      //Cells in the second to las column on the right
       else if (curCell % cellRoot == cellRoot - 2) {
          pipe(leftXAxisPipe);
          pipe(upRightYAxisPipe);
@@ -245,6 +273,7 @@ void InteriorCellsPipes(int numberOfCells, int cellRoot, int curCell,
          cellRdWr[curCell].allInFD[cellRdWr[curCell].numInFD++] =
             upLeftYAxisPipe[0];
       }
+
       pipe(upYAxisPipe);
       pipe(downYAxisPipe);
 
@@ -260,6 +289,7 @@ void InteriorCellsPipes(int numberOfCells, int cellRoot, int curCell,
       cellRdWr[curCell].allOutFD[cellRdWr[curCell].numOutFD++] =
          downYAxisPipe[1];
 
+      //All cells except for the first column
       if (curCell % cellRoot > 1) {
          pipe(downLeftYAxisPipe);
 
@@ -271,6 +301,7 @@ void InteriorCellsPipes(int numberOfCells, int cellRoot, int curCell,
       }  
    }
 
+   //All cells in the last column
    else if (curCell % cellRoot == cellRoot - 1) {
       pipe(downLeftYAxisPipe);
 
@@ -284,10 +315,16 @@ void InteriorCellsPipes(int numberOfCells, int cellRoot, int curCell,
    }
 }
 
+/* This function will set up the second to last row's pipes. Because
+ * of how the cell pipe logic works, no function is needed for the final
+ * row. Once the last cell in the second to last row is finished,
+ * all pipes for the last row have been created.
+ */
 void SecondToLastRowPipes(int numberOfCells, int cellRoot, int curCell,
  int *rightXAxisPipe, int *upRightYAxisPipe, int *upLeftYAxisPipe,
  int *upYAxisPipe, int *leftXAxisPipe, CellFileDescriptor *cellRdWr) {
    
+   //Cell in the first column
    if (curCell % cellRoot == 0) {
       pipe(rightXAxisPipe);
    
@@ -300,6 +337,8 @@ void SecondToLastRowPipes(int numberOfCells, int cellRoot, int curCell,
          rightXAxisPipe[1];
    }
 
+   //Cells in all columns up to, but not including, the last column
+   //on the right
    else if (curCell % cellRoot != numberOfCells - cellRoot - 1) {
       if (curCell != 5) {
          if (curCell % cellRoot < cellRoot - 2) {
@@ -344,19 +383,23 @@ void SecondToLastRowPipes(int numberOfCells, int cellRoot, int curCell,
    }
 }
 
-
+/* Helper function for pipe creation. Depending on where we are located in
+ * the grid, one of these functions are called
+ */
 void SetupPipes(int numberOfCells, int curCell, int *downYAxisPipe,
  int *upYAxisPipe, int *upLeftYAxisPipe, int *upRightYAxisPipe,
  int *leftXAxisPipe, int *rightXAxisPipe, int *downLeftYAxisPipe,
  int *downRightYAxisPipe, int cellRoot, CellFileDescriptor *cellRdWr) {
 
    if (numberOfCells > MIN_CELLS_FOR_PIPES) {
+      //First row of pipes
       if (curCell < cellRoot) {
          FirstRowPipes(numberOfCells, curCell, cellRoot,
           downRightYAxisPipe, downLeftYAxisPipe, downYAxisPipe,
           cellRdWr);
       }
 
+      //All interior cells up to the second to last row
       else if (curCell < numberOfCells - 2 * cellRoot) {
          InteriorCellsPipes(numberOfCells, cellRoot, curCell,
           rightXAxisPipe, downRightYAxisPipe, leftXAxisPipe, upRightYAxisPipe,
@@ -364,6 +407,7 @@ void SetupPipes(int numberOfCells, int curCell, int *downYAxisPipe,
           cellRdWr);
       }
 
+      //Second to last row
       else if (curCell < numberOfCells - cellRoot) {
          SecondToLastRowPipes(numberOfCells, cellRoot, curCell,
           rightXAxisPipe, upRightYAxisPipe, upLeftYAxisPipe, upYAxisPipe,
@@ -372,13 +416,16 @@ void SetupPipes(int numberOfCells, int curCell, int *downYAxisPipe,
    }
 }
 
+/* This function will build the needed command line arguments for the cell
+ * child processes. This function will only be called in the forked child
+ * process.
+ */
 void BuildCellCmdArguments(int curCell, int reportPipeWrite,
   CellFileDescriptor *cellRdWr, char ***cellArgv, int time,
   char **parsedCellValues, int numberOfCells) {
   int tempInFD = 0, tempOutFD = 0;
   char tempArg[TWENTY_FIVE];
   
-
    strcpy(*(*cellArgv)++, "CELL\0");
    sprintf(tempArg, "S%i", time);
    strcpy(*(*cellArgv)++, tempArg);
@@ -387,6 +434,7 @@ void BuildCellCmdArguments(int curCell, int reportPipeWrite,
    strcpy(*(*cellArgv)++, tempArg);
    sprintf(tempArg, "O%i", reportPipeWrite);
    strcpy(*(*cellArgv)++, tempArg);
+ 
    while (tempInFD < cellRdWr[curCell].numInFD) {
       sprintf(tempArg, "I%i", cellRdWr[curCell].allInFD[tempInFD++]);
       strcpy(*(*cellArgv)++, tempArg);
@@ -402,14 +450,22 @@ void BuildCellCmdArguments(int curCell, int reportPipeWrite,
       sprintf(tempArg + 1, "%f", cellRdWr[curCell].fixedValue);
       strcpy(*(*cellArgv)++, tempArg);
    }
-
 }
+
+/* This function reads all data from the reportPipe. All cells will write to
+ * this pipe during each of their "time" iterations. The x and y coordinates
+ * are determined by the cell's id and that id's relation to the square root
+ * of the total number of cells
+ */
 void ReportOutput(int *reportPipe, int numberOfCells, int time, int cellRoot) {
    int xCord, yCord;
    Report parentReport = { 0 };
 
    close(reportPipe[1]);
-   
+ 
+   while (numberOfCells--)
+      wait(NULL);
+
    while (read(reportPipe[0], &parentReport, sizeof(Report))) {
       xCord = parentReport.id % cellRoot;
       yCord = parentReport.id / cellRoot;
@@ -418,6 +474,9 @@ void ReportOutput(int *reportPipe, int numberOfCells, int time, int cellRoot) {
    }  
 }
 
+/*Main driver for the XYSimulator.c file. In this function, the parent process
+ * continually forks children that will then exec() into cells
+ */
 int main(int argc, char **argv) {
    int numberOfCells, simulateTime, reportPipe[2], numFixedValueCells;
    int curCell = 0, i = 0, sqrtOfTotalCells;
@@ -445,7 +504,6 @@ int main(int argc, char **argv) {
    pipe(reportPipe);
 
    while (curCell < numberOfCells) {
-
       SetupPipes(numberOfCells, curCell, downYAxisPipe, upYAxisPipe,
        upLeftYAxisPipe, upRightYAxisPipe, leftXAxisPipe, rightXAxisPipe,
        downLeftYAxisPipe, downRightYAxisPipe, sqrtOfTotalCells,
@@ -465,8 +523,12 @@ int main(int argc, char **argv) {
 
          execve("./Cell", cellArgv, NULL);
       }
+      for (i = 0; i < MAX_CELL_ARGS; i++)
+         if (cellArgv[i])
+            free(cellArgv[i]);
       curCell++;     
    }
+
    ReportOutput(reportPipe, numberOfCells, simulateTime, sqrtOfTotalCells);
 
    return 0;

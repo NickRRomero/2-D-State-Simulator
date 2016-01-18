@@ -11,7 +11,11 @@
 #define ACCEPT 73
 #define FIXEDVAL 86
 #define IDNUMBER 68
-#define MAX_CELL_INPUTS 7
+#define MAX_CELL_INPUTS 15
+
+/*Following will read all Command Line Arguments passed to Cell
+ * Return value signifies how many unique reads this cell will have
+ */
 
 int ReadArguments(int *inFd, int *outFd, int acceptFd[], int transmitFd[],
  Report *myReportStruct, int *time, int argc, char **argv) {
@@ -51,6 +55,11 @@ int ReadArguments(int *inFd, int *outFd, int acceptFd[], int transmitFd[],
    return actualNumberOfInputs;
 }
 
+/*This fuction will loop for a predetermined amount of time. The cell will read
+ * all incoming data from adjacent cells. It will then average out their values
+ * and adjust its own. Then the cell will write its value to all outgoing pipes
+ */
+
 void SimulateCellTime(int inFd, int outFd, int acceptFd[], int transmitFd[],
  Report *myReportStruct, int time, int actualNumberOfInputs) {
    int i, j = 0, tempInFD, tempOutFD;
@@ -62,7 +71,8 @@ void SimulateCellTime(int inFd, int outFd, int acceptFd[], int transmitFd[],
       tempOutFD = outFd;
       while (tempOutFD != -1) {
          if (transmitFd[tempOutFD] == 4) {
-            bytesRead = write(transmitFd[tempOutFD--], myReportStruct, sizeof(Report)); 
+            bytesRead = write(transmitFd[tempOutFD--], myReportStruct,
+             sizeof(Report)); 
          }
          else
             write(transmitFd[tempOutFD--], myReportStruct, sizeof(Report));
@@ -73,8 +83,10 @@ void SimulateCellTime(int inFd, int outFd, int acceptFd[], int transmitFd[],
          j = 0;
          average = 0;
          
-         while (tempInFD > -1)
-            read(acceptFd[tempInFD--], &(adjacentReportCells[j++]), sizeof(Report));
+         while (tempInFD > -1) {
+            read(acceptFd[tempInFD--], &(adjacentReportCells[j++]),
+             sizeof(Report));
+         }
          
          while (--j > -1)
             average += adjacentReportCells[j].value;
@@ -85,6 +97,7 @@ void SimulateCellTime(int inFd, int outFd, int acceptFd[], int transmitFd[],
    }
 }
 
+//Ensure all file descriptors are closed when the program terminates
 void CloseFileDescriptors(int inFd, int outFd, int acceptFd[],
  int transmitFd[]) {
    int i = 0, j = 0;
